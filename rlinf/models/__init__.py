@@ -30,6 +30,8 @@ def get_model(cfg: DictConfig):
         from rlinf.models.embodiment.mlp_policy import get_model
     elif model_type == SupportedModel.GR00T:
         from rlinf.models.embodiment.gr00t import get_model
+    elif model_type == SupportedModel.RDT:
+        from rlinf.models.embodiment.rdt import get_model
     elif model_type == SupportedModel.CNN_POLICY:
         from rlinf.models.embodiment.cnn_policy import get_model
     elif model_type == SupportedModel.RESIDUAL_POLICY:

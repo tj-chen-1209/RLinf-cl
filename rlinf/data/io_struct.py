@@ -1210,6 +1210,7 @@ class EnvOutput:
             obs["extra_view_images"] if "extra_view_images" in obs else None
         )
         states = obs["states"] if "states" in obs else None
+        states_joint = obs["states_joint"] if "states_joint" in obs else None 
         task_descriptions = (
             list(obs["task_descriptions"]) if "task_descriptions" in obs else None
         )
@@ -1217,12 +1218,13 @@ class EnvOutput:
         object_to_robot_relations = obs["object_to_robot_relations"] if "object_to_robot_relations" in obs else None
 
         rl_flatten_obs = torch.cat([robot_proprio_state, object_to_robot_relations], dim=-1) if robot_proprio_state is not None and object_to_robot_relations is not None else None
-
+        # siqi change prepare_observations 中添加 states_joint
         return {
             "main_images": image_tensor,  # [N_ENV, H, W, C]
             "wrist_images": wrist_image_tensor,  # [N_ENV, H, W, C] or [N_ENV, N_IMG, H, W, C]
             "extra_view_images": extra_view_image_tensor,  # [N_ENV, N_IMG, H, W, C]
             "states": states,
+            "states_joint": states_joint,  # [N_ENV, 9] (7 joints + 2 gripper) for RDT
             "task_descriptions": task_descriptions,
             "rl_flatten_obs": rl_flatten_obs,  # [N_ENV, N_ROBOT_PROP_STATE + N_OBJECT_TO_ROBOT_RELATIONS]
         }

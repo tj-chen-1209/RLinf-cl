@@ -53,6 +53,7 @@ class SupportedModel(Enum):
     OPENPI = ("openpi", "embodied")
     MLP_POLICY = ("mlp_policy", "embodied")
     GR00T = ("gr00t", "embodied")
+    RDT = ("rdt", "embodied")
     CNN_POLICY = ("cnn_policy", "embodied")
     RESIDUAL_POLICY = ("residual_policy", "embodied")
     LORA_RESIDUAL_POLICY = ("lora_residual_policy", "embodied")

@@ -289,6 +289,13 @@ class LiberoEnv(gym.Env):
                     obs["robot0_gripper_qpos"],
                 ]
             ),
+            # siqi change: 为了获取7DoF+2gripper
+            "joint_state":np.concatenate(
+                [
+                    obs["robot0_joint_pos"],
+                    obs["robot0_gripper_qpos"],
+                ]
+            )
         }
 
     def _extract_rl_observations(self, obs):
@@ -360,11 +367,13 @@ class LiberoEnv(gym.Env):
         object_to_robot_relations = to_tensor(np.stack([r["object_to_robot_relations"] for r in rl_obs_list]))
 
         states = images_and_states["state"]
+        joint_states = images_and_states["joint_state"]
 
         obs = {
             "main_images": full_image_tensor,
             "wrist_images": wrist_image_tensor,
             "states": states,
+            "states_joint": joint_states,
             "task_descriptions": self.task_descriptions,
             "robot_proprio_state": robot_proprio_states,
             "object_to_robot_relations": object_to_robot_relations,

@@ -1,0 +1,27 @@
+model_type: "rdt"
+
+# Model path - should be set in specific config files
+model_path: "/path/to/rdt/checkpoint"
+
+# Model precision and loading settings
+precision: "bf16"
+trust_remote_code: True
+is_lora: false
+
+# Action and policy settings
+action_dim: 7  # LIBERO: 6 EEF velocities + 1 gripper
+num_action_chunks: 8  # Number of action chunks to output (default: 8, can be adjusted)
+denoising_steps: 5  # Denoising steps for inference (5 is fast and effective)
+
+# Observation and embodiment settings
+obs_converter_type: "libero"
+embodiment_tag: "libero_franka"
+add_value_head: True
+
+# RDT specific configuration
+# Note: The RDT model uses a diffusion-based approach
+# - 64 action horizon (predicted internally)
+# - Only outputs first `num_action_chunks` for execution
+# - Uses DPM-Solver for fast sampling (5 steps)
+
+
