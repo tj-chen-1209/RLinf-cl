@@ -1,0 +1,10 @@
+accelerate==0.30.1
+diffusers==0.36.0
+huggingface-hub==0.36.0
+numpy==1.26.4
+opencv-python==4.9.0.80
+pillow==12.0.0
+tensorboard==2.20.0
+tensorboard-data-server==0.7.2
+transformers==4.41.0
+wandb==0.24.0

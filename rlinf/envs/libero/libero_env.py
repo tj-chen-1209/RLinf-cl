@@ -118,7 +118,7 @@ class LiberoEnv(gym.Env):
                 {
                     **base_env_args,
                     "bddl_file_name": task_bddl_file,
-                    "seed": self.seed,
+                    "seed": self.cfg.seed,  # 强制使用统一seed，消除多GPU差异
                 }
             )
             task_descriptions.append(task.language)
@@ -171,6 +171,11 @@ class LiberoEnv(gym.Env):
             num_trials = min(self.trial_id_bins[task_id], self.max_trials_per_task)
             start_pivot = self.cumsum_trial_id_bins[task_id - 1] if task_id > 0 else 0
             reset_state_ids = np.arange(start_pivot, start_pivot + num_trials)
+        elif self.max_trials_per_task is not None:
+            # NOTE: 当设置了max_trials_per_task时，不再使用此函数
+            # 而是在_get_ordered_reset_state_ids中直接生成
+            # 这里只是为了兼容性保留
+            reset_state_ids = np.arange(self.total_num_group_envs)
         else:
             reset_state_ids = np.arange(self.total_num_group_envs)
         valid_size = len(reset_state_ids) - (
@@ -195,6 +200,26 @@ class LiberoEnv(gym.Env):
                 reset_state_ids = self.specific_reset_id * np.ones(
                     (self.num_group,), dtype=int
                 )
+        elif self.max_trials_per_task is not None:
+            # NEW: 当设置了max_trials_per_task时，循环使用有限的reset states
+            # 收集所有任务的前N个trials
+            available_states = []
+            for task_id in range(len(self.trial_id_bins)):
+                num_trials = min(self.trial_id_bins[task_id], self.max_trials_per_task)
+                start_pivot = self.cumsum_trial_id_bins[task_id - 1] if task_id > 0 else 0
+                task_reset_ids = np.arange(start_pivot, start_pivot + num_trials)
+                available_states.append(task_reset_ids)
+            available_states = np.concatenate(available_states)
+            # 循环使用这些states
+            indices = np.arange(num_reset_states) % len(available_states)
+            reset_state_ids = available_states[indices]
+            
+            # DEBUG: 打印使用的reset_state_ids
+            if self.seed_offset == 0:  # 只在第一个worker打印
+                print(f"\n[DEBUG LiberoEnv] max_trials_per_task={self.max_trials_per_task}")
+                print(f"  available_states: {available_states}")
+                print(f"  num_reset_states requested: {num_reset_states}")
+                print(f"  reset_state_ids generated: {reset_state_ids}")
         else:
             if self.start_idx + num_reset_states > len(self.reset_state_ids_all[0]):
                 self.reset_state_ids_all = self.get_reset_state_ids_all()
@@ -417,7 +442,8 @@ class LiberoEnv(gym.Env):
             reset_state_ids = self._get_random_reset_state_ids(num_reset_states)
 
         self._reconfigure(reset_state_ids, env_idx)
-        for _ in range(15):
+        # Physical warm-up: 5 steps to match original RDT (was 15)
+        for _ in range(5):
             zero_actions = np.zeros((len(env_idx), 7))
             if self.cfg.reset_gripper_open:
                 zero_actions[:, -1] = -1

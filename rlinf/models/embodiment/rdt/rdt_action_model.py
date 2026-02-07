@@ -239,7 +239,7 @@ class RDTForRLActionPrediction(BasePolicy):
         RDT 需要的键会在 predict_action_batch 中通过 obs_convert_fn 处理。
         """
         return env_obs
-    # 
+    # TODO
     @torch.no_grad()
     def predict_action_batch(
         self,
@@ -261,6 +261,18 @@ class RDTForRLActionPrediction(BasePolicy):
         # 步骤1: 观测格式转换（使用 image_processor）
         # 从 config 读取 auto_adjust_brightness 设置
         auto_adjust_brightness = self.dataset_cfg.get('auto_adjust_image_brightness', False)
+        
+        # DEBUG: 打印输入观测信息（首次）
+        if not hasattr(self, '_input_debug_done'):
+            self._input_debug_done = True
+            print(f"\n[RDT INPUT DEBUG]")
+            print(f"  main_images shape: {env_obs['main_images'].shape}")  # Should be (B, H, W, C)
+            print(f"  wrist_images shape: {env_obs['wrist_images'].shape}")
+            print(f"  states_joint shape: {env_obs['states_joint'].shape}")  # Should be (B, 9)
+            print(f"  states_joint[0]: {env_obs['states_joint'][0].cpu().numpy()}")
+            print(f"  states_joint gripper[0,-2:]: {env_obs['states_joint'][0,-2:].cpu().numpy()}")
+            print(f"  auto_adjust_brightness: {auto_adjust_brightness}")
+        
         rdt_obs = self.obs_convert_fn(
             env_obs, 
             self.history_obs,
@@ -341,8 +353,25 @@ class RDTForRLActionPrediction(BasePolicy):
             actions_cpu = actions_cpu.float()
         actions_numpy = actions_cpu.numpy()
         
+        # DEBUG: 打印维度和统计信息（首次或每100步打印一次）
+        if not hasattr(self, '_debug_counter'):
+            self._debug_counter = 0
+        if self._debug_counter % 100 == 0:
+            print(f"\n[RDT DEBUG - Step {self._debug_counter}]")
+            print(f"  actions shape: {actions_numpy.shape}")  # Should be (B, 8, 128)
+            print(f"  actions[0,0,10] (gripper): {actions_numpy[0, 0, 10]:.4f}")
+            print(f"  actions[0,0,39:45] (eef vel): {actions_numpy[0, 0, 39:45]}")
+            print(f"  actions range: [{actions_numpy.min():.4f}, {actions_numpy.max():.4f}]")
+        self._debug_counter += 1
+        
         # 传递 chunk_size 给 action_convert_fn
         raw_actions = self.action_convert_fn(actions_numpy, chunk_size=self.output_action_chunks)
+        
+        # DEBUG: 打印转换后的动作
+        if self._debug_counter % 100 == 1:
+            print(f"  raw_actions shape: {raw_actions.shape}")  # Should be (B, 8, 7)
+            print(f"  raw_actions[0,0] (7D): {raw_actions[0, 0]}")
+            print(f"  gripper after binarize: {raw_actions[0, 0, -1]:.4f}")
         
 
         # TODO
@@ -483,6 +512,7 @@ def convert_libero_obs_to_rdt_format(env_obs, history_obs=None, image_processor=
     # RLinf 环境在 get_libero_image() 中已经翻转了 180°，
     # 但 Libero_RDT 训练时使用的是未翻转的原始 LIBERO 图像，
     # 所以这里需要反转回来
+    # 测试结果证明：双重翻转（回到原图）是正确的
     main_stacked = main_stacked[:, :, ::-1, ::-1, :].copy()  # (B, T, H, W, C)
     wrist_stacked = wrist_stacked[:, :, ::-1, ::-1, :].copy()  # (B, T, H, W, C)
     
