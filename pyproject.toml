@@ -97,6 +97,20 @@ franka = [
     "imageio[ffmpeg]",
 ]
 
+[build-system]
+requires = ["setuptools>=69.5.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Explicitly include only the rlinf package and exclude others
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rlinf*"]
+exclude = ["logs*", "docker*", "toolkits*", "ray_utils*", "examples*", "scripts*"]
+
+[tool.setuptools.package-data]
+rlinf = ["**/*.yaml", "**/*.yml", "**/*.json"]
+
 [tool.uv]
 prerelease = "allow"
 conflicts = [
