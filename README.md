@@ -44,40 +44,61 @@
 
 ### 1.1 环境部署
 
-使用优化的 Docker 镜像（国内镜像加速）：
+使用优化的 Docker 镜像（国内镜像加速 + 完整依赖）：
 
 ```bash
 cd /home/zhukefei/chensiqi/rlinf_workspace
 
 # 构建 Docker 镜像（已优化，使用清华源）
-docker build \
-  -f RLinf-cl/docker/Dockerfile.rdt.simple \
-  -t rlinf-rdt:latest \
+sudo docker build \
+  -f RLinf-cl/docker/Dockerfile.rdt.simple.optimized \
+  -t rlinf-rdt:optimized \
   --progress=plain \
   .
 
-# 运行容器
-docker run -it --gpus all \
+# 启动容器（后台运行）
+sudo docker run -d --gpus all \
   --shm-size 100g \
   --net=host \
   --name rlinf-rdt \
   -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics \
+  -e MUJOCO_GL=egl \
+  -e PYOPENGL_PLATFORM=egl \
   -v /home/zhukefei/chensiqi/rlinf_workspace:/workspace \
-  -v $HF_HOME:/workspace/hf \
-  rlinf-rdt:latest /bin/bash
+  -v /home/zhukefei/.cache/huggingface:/root/.cache/huggingface \
+  rlinf-rdt:optimized tail -f /dev/null
+
+# 进入容器
+sudo docker exec -it rlinf-rdt bash
+
+# 容器内安装缺失依赖（首次使用）
+pip install ray datasets==3.6.0 einops scipy sentencepiece wandb
 ```
 
 ### 1.2 RDT 模型准备
 
-```bash
-# RDT checkpoint 位置（已微调的 LIBERO 模型）
-export RDT_CHECKPOINT_PATH="/workspace/Libero_RDT/RDT_libero_finetune/checkpoints/best_checkpoints"
+**从 HuggingFace 下载预训练模型：**
 
-# 可用的 checkpoint:
-# - libero_spatial_best_ckpt
-# - libero_goal_best_ckpt
-# - libero_object_best_ckpt
-# - libero_long_best_ckpt
+```bash
+# 在容器内执行
+cd /workspace
+
+# 下载 RDT-1B LIBERO 模型系列
+huggingface-cli download TJ-chen/RDT-1B-LIBERO-Base --local-dir ./checkpoints/libero_base
+huggingface-cli download TJ-chen/RDT-1B-LIBERO-Spatial --local-dir ./checkpoints/libero_spatial
+huggingface-cli download TJ-chen/RDT-1B-LIBERO-Goal --local-dir ./checkpoints/libero_goal
+huggingface-cli download TJ-chen/RDT-1B-LIBERO-Object --local-dir ./checkpoints/libero_object
+huggingface-cli download TJ-chen/RDT-1B-LIBERO-Long --local-dir ./checkpoints/libero_long
+
+# 设置环境变量
+export RDT_CHECKPOINT_PATH="/workspace/checkpoints"
+```
+
+**或使用本地已有模型：**
+
+```bash
+# 本地 checkpoint 路径
+export RDT_CHECKPOINT_PATH="/workspace/Libero_RDT/RDT_libero_finetune/checkpoints/best_checkpoints"
 ```
 
 ### 1.3 训练（PPO + RDT）
