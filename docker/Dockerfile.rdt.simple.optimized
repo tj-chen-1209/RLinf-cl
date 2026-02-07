@@ -1,0 +1,88 @@
+# Optimized Dockerfile for RLinf-cl with RDT environment
+# Uses Chinese mirrors for faster package downloads
+
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+
+LABEL maintainer="RLinf-cl"
+LABEL description="RLinf-cl Docker image with RDT environment for LIBERO evaluation (Optimized)"
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
+
+# Use Aliyun Ubuntu mirror for faster apt downloads (China)
+RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.aliyun.com@g' /etc/apt/sources.list && \
+    sed -i 's@//.*security.ubuntu.com@//mirrors.aliyun.com@g' /etc/apt/sources.list
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    vim \
+    wget \
+    curl \
+    build-essential \
+    cmake \
+    pkg-config \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libosmesa6-dev \
+    patchelf \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+# Configure pip to use Tsinghua mirror (China) for faster downloads
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip setuptools wheel
+
+# Set HuggingFace cache directory
+ENV HF_HOME=/workspace/hf
+RUN mkdir -p $HF_HOME
+
+# Set working directory
+WORKDIR /workspace
+
+# Install PyTorch with CUDA 12.4 support from Tsinghua mirror
+# Remove --no-cache-dir to speed up rebuilds during development
+RUN pip install \
+    torch==2.6.0 \
+    torchvision==0.21.0 \
+    torchaudio==2.6.0 \
+    --index-url https://mirrors.tuna.tsinghua.edu.cn/pytorch-wheels/cu124
+
+# Copy and install other core requirements
+COPY RLinf-cl/docker/requirements_core.txt /tmp/requirements_core.txt
+RUN pip install -r /tmp/requirements_core.txt
+
+# Copy LIBERO directory and install it
+COPY LIBERO /workspace/LIBERO
+RUN cd /workspace/LIBERO && pip install -e .
+
+# Copy RLinf-cl project files
+COPY RLinf-cl /workspace/RLinf-cl
+WORKDIR /workspace/RLinf-cl
+
+# Install additional RLinf dependencies from requirements
+RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+# Install RLinf package in editable mode
+RUN pip install -e . --no-deps
+
+# Set default command
+CMD ["/bin/bash"]
+
+
