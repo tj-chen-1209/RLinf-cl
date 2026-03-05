@@ -8,7 +8,8 @@
 - **完成日期**: 2026-02
 - **功能**: 成功将 RDT 扩散策略模型接入 RLinf 框架
 - **支持环境**: LIBERO (Spatial, Goal, Object, Long)
-- **支持算法**: PPO, Evaluation
+- **当前状态**: ✅ 评估（行为克隆） | ⏳ RL 训练（开发中）
+- **详细文档**: 📖 [RDT Integration Guide](docs/RDT_INTEGRATION.md) - 完整的技术文档（中英双语）
 
 ---
 

@@ -92,6 +92,7 @@ RLinf 是一个灵活且可扩展的开源框架，专为具身智能和智能�
             <li><a href="https://rlinf.readthedocs.io/zh-cn/latest/rst_source/examples/maniskill.html">OpenVLA</a> ✅</li>
             <li><a href="https://rlinf.readthedocs.io/zh-cn/latest/rst_source/examples/libero.html">OpenVLA-OFT</a> ✅</li>
             <li><a href="https://rlinf.readthedocs.io/zh-cn/latest/rst_source/examples/gr00t.html">GR00T</a> ✅</li>
+            <li><a href="docs/RDT_INTEGRATION.md">RDT</a> ⏳ (评估完成，RL训练开发中)</li>
           </ul>
           <li><b>VLM 模型</b></li>
           <ul>
