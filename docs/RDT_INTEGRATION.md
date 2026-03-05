@@ -474,48 +474,6 @@ algorithm:
 
 ---
 
-## 🔬 Experimental Results (Evaluation Only)
-
-### LIBERO Spatial Evaluation
-
-| Task | Success Rate | Notes |
-|------|-------------|-------|
-| pick_up_black_bowl_between_plate_and_ramekin | 95% (19/20) | Excellent spatial reasoning |
-| pick_up_black_bowl_next_to_ramekin | 100% (20/20) | Perfect performance |
-| pick_up_black_bowl_from_table_center | 100% (20/20) | Perfect performance |
-| pick_up_black_bowl_on_cookie_box | 90% (18/20) | Stacking challenge |
-| pick_up_black_bowl_in_top_drawer | 85% (17/20) | Drawer opening complexity |
-| ... | ... | ... |
-
-**Overall**: ~95% average success rate on LIBERO Spatial tasks using pre-trained RDT checkpoint.
-
----
-
-## 🛠️ Future Work
-
-### Short-term (1-2 months)
-
-- [ ] **Complete log probability computation** for diffusion models
-- [ ] **Implement PPO training** with RDT policy
-- [ ] **Benchmark RL vs BC** performance on LIBERO tasks
-- [ ] **Optimize inference speed** (e.g., fewer denoising steps, caching)
-
-### Medium-term (3-6 months)
-
-- [ ] **Support other diffusion schedulers** (DDIM, DPM-Solver)
-- [ ] **Implement value head** for actor-critic algorithms
-- [ ] **Multi-task RL training** across LIBERO suites
-- [ ] **Real robot deployment** with RDT + RLinf
-
-### Long-term (6+ months)
-
-- [ ] **Diffusion policy gradient methods** (score-based RL)
-- [ ] **Hierarchical RL** with action chunking
-- [ ] **Multi-embodiment training** (Franka, UR5, etc.)
-- [ ] **Open-world continual learning** with RDT
-
----
-
 ## 📚 References
 
 - **RDT Paper**: [Robotics Diffusion Transformer](https://arxiv.org/abs/2410.07804)
@@ -1012,48 +970,6 @@ algorithm:
 
 ---
 
-## 🔬 实验结果（仅评估）
-
-### LIBERO Spatial 评估
-
-| 任务 | 成功率 | 备注 |
-|------|--------|------|
-| pick_up_black_bowl_between_plate_and_ramekin | 95% (19/20) | 出色的空间推理 |
-| pick_up_black_bowl_next_to_ramekin | 100% (20/20) | 完美表现 |
-| pick_up_black_bowl_from_table_center | 100% (20/20) | 完美表现 |
-| pick_up_black_bowl_on_cookie_box | 90% (18/20) | 堆叠挑战 |
-| pick_up_black_bowl_in_top_drawer | 85% (17/20) | 抽屉打开复杂性 |
-| ... | ... | ... |
-
-**总体**：使用预训练 RDT 检查点在 LIBERO Spatial 任务上平均成功率约 95%。
-
----
-
-## 🛠️ 未来工作
-
-### 短期（1-2 个月）
-
-- [ ] **完成扩散模型的对数概率计算**
-- [ ] **实现使用 RDT 策略的 PPO 训练**
-- [ ] **在 LIBERO 任务上对比 RL vs BC 性能**
-- [ ] **优化推理速度**（例如，减少去噪步骤、缓存）
-
-### 中期（3-6 个月）
-
-- [ ] **支持其他扩散调度器**（DDIM、DPM-Solver）
-- [ ] **实现 value head** 用于 actor-critic 算法
-- [ ] **跨 LIBERO 任务集的多任务 RL 训练**
-- [ ] **使用 RDT + RLinf 进行真机部署**
-
-### 长期（6 个月以上）
-
-- [ ] **扩散策略梯度方法**（基于分数的 RL）
-- [ ] **带动作分块的分层 RL**
-- [ ] **多实体训练**（Franka、UR5 等）
-- [ ] **使用 RDT 的开放世界持续学习**
-
----
-
 ## 📚 参考文献
 
 - **RDT 论文**：[Robotics Diffusion Transformer](https://arxiv.org/abs/2410.07804)
@@ -1066,7 +982,7 @@ algorithm:
 
 ## 📧 联系方式
 
-**维护者**：陈思琪  
+**维护者**：Siqi Chen  
 **邮箱**：chentingjia1209@163.com  
 **所属**：RLinf 团队  
 

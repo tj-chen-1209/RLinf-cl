@@ -1,325 +1,495 @@
-# RLinf-CL: Continuous Learning for Embodied AI
+# RDT Integration into RLinf
 
-[![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md)
-[![简体中文](https://img.shields.io/badge/语言-简体中文-red.svg)](README.zh-CN.md)
-
----
-
-本项目实现了基于强化学习的机器人操作持续学习框架，支持多种策略架构和训练算法。
-
-## 🆕 最新进展
-
-### ✅ RDT (Robot Diffusion Transformer) 集成完成
-- **完成日期**: 2026-02
-- **功能**: 成功将 RDT 扩散策略模型接入 RLinf 框架
-- **支持环境**: LIBERO (Spatial, Goal, Object, Long)
-- **当前状态**: ✅ 评估（行为克隆） | ⏳ RL 训练（开发中）
-- **详细文档**: 📖 [RDT Integration Guide](docs/RDT_INTEGRATION.md) - 完整的技术文档（中英双语）
+[中文版](#rdt-接入-rlinf) | English
 
 ---
 
-## 目录
-- [模型支持](#模型支持)
-- [快速开始](#快速开始)
-  - [1. RDT 策略部署与训练](#1-rdt-策略部署与训练)
-  - [2. Residual SAC 训练](#2-residual-sac-训练)
-- [实现细节](#实现细节)
+## 📋 Overview
+
+This document describes the integration of **RDT (Robotics Diffusion Transformer)** into the **RLinf** reinforcement learning framework. RDT is a state-of-the-art diffusion-based policy model for robot manipulation, and this integration enables online reinforcement learning fine-tuning on top of pre-trained RDT checkpoints.
+
+**Status**: ✅ Evaluation (Behavior Cloning) | ⏳ RL Training (In Progress)
+
+**Key Challenge**: Diffusion models perform iterative denoising and do not directly output log probabilities, which are required for policy gradient methods like PPO. The current implementation focuses on evaluation using pre-trained RDT checkpoints.
 
 ---
 
-## 模型支持
+## 🏗️ System Architecture
 
-### 1. RDT (Robot Diffusion Transformer)
-- 基于扩散模型的机器人策略
-- 支持视觉-语言多模态输入
-- Action chunking 推理
-- LIBERO 多任务微调
-- 配置文件: `examples/embodiment/config/model/rdt.yaml`
+### Integration Overview
 
-### 2. Residual Policy (OpenVLA-OFT)
-- 基于 OpenVLA 的残差策略
-- LoRA 高效微调
-- 支持 SAC/PPO 算法
-- 配置文件: `examples/embodiment/config/model/residual_policy.yaml`
+```mermaid
+graph TB
+    A[LIBERO Environment] --> B[LiberoEnv Wrapper]
+    B --> C[Observation Preprocessing]
+    C --> D[RDT Policy Model]
+    
+    D --> E[T5 Language Encoder]
+    D --> F[SigLIP Vision Encoder]
+    D --> G[RDT Diffusion Model]
+    
+    E --> H[Multimodal Fusion]
+    F --> H
+    G --> H
+    
+    H --> I[DDPM Denoising]
+    I --> J[Action Chunks 64 steps]
+    J --> K[Action Postprocessing]
+    K --> L[Execute in Environment]
+    
+    style D fill:#FFE4B5
+    style I fill:#90EE90
+    style K fill:#FFB6C1
+```
+
+### Core Components
+
+| Module | Function | Implementation File |
+|--------|----------|-------------------|
+| **RDT Policy** | Main policy model with diffusion-based action generation | `rlinf/models/embodiment/rdt/rdt_action_model_withlogprob.py` |
+| **RDT Core** | Diffusion transformer backbone | `rlinf/models/embodiment/rdt/model.py` |
+| **T5 Encoder** | Language instruction encoding | `rlinf/models/embodiment/rdt/multimodal_encoder/t5_encoder.py` |
+| **SigLIP Encoder** | Visual observation encoding | `rlinf/models/embodiment/rdt/multimodal_encoder/siglip_encoder.py` |
+| **LIBERO Env** | Modified environment with joint state support | `rlinf/envs/libero/libero_env.py` |
+| **Data I/O** | Joint state passing to workers | `rlinf/data/io_struct.py` |
 
 ---
 
-## 快速开始
+## 📁 Code Structure
 
-## 1. RDT 策略部署与训练
+### 1. Core Implementation Path
 
-### 1.1 环境部署
-
-使用优化的 Docker 镜像（国内镜像加速 + 完整依赖）：
-
-```bash
-cd /home/zhukefei/chensiqi/rlinf_workspace
-
-# 构建 Docker 镜像（已优化，使用清华源）
-sudo docker build \
-  -f RLinf-cl/docker/Dockerfile.rdt.simple.optimized \
-  -t rlinf-rdt:optimized \
-  --progress=plain \
-  .
-
-# 启动容器（后台运行）
-sudo docker run -d --gpus all \
-  --shm-size 100g \
-  --net=host \
-  --name rlinf-rdt \
-  -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics \
-  -e MUJOCO_GL=egl \
-  -e PYOPENGL_PLATFORM=egl \
-  -v /home/zhukefei/chensiqi/rlinf_workspace:/workspace \
-  -v /home/zhukefei/.cache/huggingface:/root/.cache/huggingface \
-  rlinf-rdt:optimized tail -f /dev/null
-
-# 进入容器
-sudo docker exec -it rlinf-rdt bash
-
-# 容器内安装缺失依赖（首次使用）
-pip install ray datasets==3.6.0 einops scipy sentencepiece wandb
+```
+RLinf/
+├── rlinf/models/embodiment/rdt/
+│   ├── rdt_action_model_withlogprob.py  # Main policy class (1386 lines)
+│   ├── model.py                         # RDT core model (233 lines)
+│   ├── blocks.py                        # Transformer blocks
+│   ├── multimodal_encoder/
+│   │   ├── t5_encoder.py                # T5-XXL language encoder
+│   │   └── siglip_encoder.py            # SigLIP-SO400M vision encoder
+│   └── google/                          # Pre-trained encoder checkpoints
+│       ├── t5-v1_1-xxl/
+│       └── siglip-so400m-patch14-384/
+├── rlinf/envs/libero/
+│   └── libero_env.py                    # LIBERO environment wrapper
+├── rlinf/data/
+│   └── io_struct.py                     # Data I/O structures
+└── examples/embodiment/
+    ├── run_libero_rdt.sh                # Training script
+    ├── eval_libero_rdt.sh               # Evaluation script
+    └── config/
+        ├── libero_spatial_ppo_rdt.yaml  # Training config
+        └── libero_spatial_rdt_eval.yaml # Evaluation config
 ```
 
-### 1.2 RDT 模型准备
+### 2. Key Files and Modifications
 
-**从 HuggingFace 下载预训练模型：**
+#### A. RDT Policy Model (`rdt_action_model_withlogprob.py`)
 
-```bash
-# 在容器内执行
-cd /workspace
+**Class**: `RDTForRLActionPrediction`
 
-# 下载 RDT-1B LIBERO 模型系列
-huggingface-cli download TJ-chen/RDT-1B-LIBERO-Base --local-dir ./checkpoints/libero_base
-huggingface-cli download TJ-chen/RDT-1B-LIBERO-Spatial --local-dir ./checkpoints/libero_spatial
-huggingface-cli download TJ-chen/RDT-1B-LIBERO-Goal --local-dir ./checkpoints/libero_goal
-huggingface-cli download TJ-chen/RDT-1B-LIBERO-Object --local-dir ./checkpoints/libero_object
-huggingface-cli download TJ-chen/RDT-1B-LIBERO-Long --local-dir ./checkpoints/libero_long
-
-# 设置环境变量
-export RDT_CHECKPOINT_PATH="/workspace/checkpoints"
+**Key Methods**:
+```python
+class RDTForRLActionPrediction(BasePolicy):
+    def predict_action_batch(self, observations, mode="train"):
+        """
+        Generate action chunks using DDPM sampling
+        
+        Returns:
+            raw_actions: (B, chunk_size, action_dim) - 64-step action chunks
+            info_dict: {} - Empty dict (log_probs not implemented yet)
+        """
+        pass
+    
+    def default_forward(self, observations, actions):
+        """
+        Compute log probabilities for given actions (for RL training)
+        
+        Note: Currently under development due to diffusion model challenges
+        """
+        pass
 ```
 
-**或使用本地已有模型：**
+**Design Highlights**:
+- Follows `diffusers.DDPMScheduler` interface for consistency
+- Supports 3 prediction types: `epsilon`, `sample`, `v_prediction`
+- Implements DDPM posterior mean/variance calculation
+- Records full denoising chain for log probability computation
 
-```bash
-# 本地 checkpoint 路径
-export RDT_CHECKPOINT_PATH="/workspace/Libero_RDT/RDT_libero_finetune/checkpoints/best_checkpoints"
+#### B. LIBERO Environment Modifications (`libero_env.py`)
+
+**Line 318-321**: Added joint state extraction
+```python
+"joint_state": np.concatenate(
+    [
+        obs["robot0_joint_pos"],      # 7-DOF arm joints
+        obs["robot0_gripper_qpos"],   # 2-DOF gripper
+    ]
+),
 ```
 
-### 1.3 训练（PPO + RDT）
+**Line 395-401**: Pass joint states to observation dict
+```python
+states = images_and_states["state"]
+joint_states = images_and_states["joint_state"]
 
-```bash
-cd /workspace/RLinf-cl
-
-# LIBERO Spatial 任务
-bash examples/embodiment/run_libero_rdt.sh
-
-# 自定义配置
-python examples/embodiment/train_embodied_agent.py \
-  --config-path examples/embodiment/config/ \
-  --config-name libero_spatial_ppo_rdt \
-  actor.model.model_path=${RDT_CHECKPOINT_PATH}/libero_spatial_best_ckpt \
-  rollout.model.model_path=${RDT_CHECKPOINT_PATH}/libero_spatial_best_ckpt
+obs = {
+    "main_images": full_image_tensor,
+    "wrist_images": wrist_image_tensor,
+    "states": states,
+    "states_joint": joint_states,  # 9-DOF joint state
+    "task_descriptions": self.task_descriptions,
+    ...
+}
 ```
 
-### 1.4 评估
+**Rationale**: RDT requires full joint state (7-DOF arm + 2-DOF gripper) as proprioceptive input, while the original LIBERO environment only provided end-effector pose.
 
+#### C. Data I/O Modifications (`io_struct.py`)
+
+Added `joint_states` field to observation structure to enable passing joint state data from environment to workers in distributed training.
+
+---
+
+## 🔍 Key Technical Challenges
+
+### 1. Image Rotation Issue
+
+**Problem**: LeRobot format datasets and LIBERO simulation have images rotated 180°
+
+**Solution**:
+```python
+# In observation preprocessing
+image = cv2.rotate(image, cv2.ROTATE_180)
+```
+
+**Impact**: Ensures consistency between training data and simulation observations.
+
+### 2. PEFT Version Check
+
+**Problem**: `diffusers` library checks PEFT version compatibility, causing import errors
+
+**Solution**:
+```python
+import os
+# Skip diffusers peft version check
+os.environ["_CHECK_PEFT"] = "0"
+```
+
+**Location**: Add this at the beginning of training/evaluation scripts.
+
+### 3. Log Probability Computation
+
+**Problem**: Diffusion models perform iterative denoising (not direct action prediction), making log probability calculation non-trivial
+
+**Current Status**:
+- ✅ DDPM sampling implemented
+- ✅ Posterior mean/variance computation
+- ⏳ Log probability computation under development
+- ⏳ RL training (PPO) not yet supported
+
+**Approach**:
+```python
+def compute_diffusion_step_with_logprob(self, x_t, t, cond, mode="train"):
+    """
+    Compute x_{t-1} from x_t with log probability
+    
+    log p(x_{t-1} | x_t, cond) = log N(x_{t-1}; mu_theta(x_t, t, cond), sigma_t^2)
+    """
+    # 1. Predict noise or x0 using RDT model
+    noise_pred = self.rdt_runner(x_t, t, cond)
+    
+    # 2. Compute DDPM posterior mean and variance
+    mu, sigma = ddpm_posterior_mean_variance(...)
+    
+    # 3. Sample x_{t-1} (train mode) or use mean (eval mode)
+    if mode == "train":
+        x_next = mu + sigma * torch.randn_like(mu)
+    else:
+        x_next = mu
+    
+    # 4. Compute log probability
+    log_prob = -0.5 * ((x_next - mu) / sigma) ** 2
+    
+    return x_next, log_prob
+```
+
+### 4. Action Space Mapping
+
+**LIBERO Action Space**: 7-DOF (end-effector delta) + 1 gripper (binary)
+**RDT Output**: 64-step action chunks, 128-dim unified action vector
+
+**Conversion**:
+```python
+def extract_libero_action(self, unified_action):
+    """
+    Extract LIBERO action from RDT's 128-dim unified action
+    
+    Mapping:
+    - [39:46] -> EEF delta (x, y, z, roll, pitch, yaw, gripper)
+    - [10] -> Alternative gripper channel
+    
+    Note: Gripper kept as continuous value (not binarized)
+    """
+    # Extract 7-DOF deltas + gripper
+    action = unified_action[..., [39, 40, 41, 42, 43, 44, 10]]
+    
+    # Clip to valid range
+    action = torch.clamp(action, -1, 1)
+    
+    return action
+```
+
+---
+
+## 🚀 Usage
+
+### Environment Setup
+
+**1. Create conda environment:**
 ```bash
-# 单任务评估
+conda create -n rdt_rlinf python=3.10
+conda activate rdt_rlinf
+```
+
+**2. Install dependencies:**
+```bash
+cd /path/to/RLinf-cl
+pip install -e .
+
+# Install RDT-specific dependencies
+pip install diffusers transformers accelerate
+pip install open_clip_torch  # For SigLIP
+```
+
+**3. Set up LIBERO:**
+```bash
+# Clone LIBERO benchmark
+git clone https://github.com/Lifelong-Robot-Learning/LIBERO.git
+cd LIBERO
+pip install -e .
+
+export LIBERO_BASE=/path/to/LIBERO
+```
+
+**4. Download RDT checkpoints:**
+```bash
+# Download pre-trained RDT checkpoint from HuggingFace
+# Example: LIBERO Spatial fine-tuned checkpoint
+export RDT_CHECKPOINT_PATH=/path/to/rdt_checkpoint
+```
+
+### Evaluation
+
+**Run LIBERO Spatial evaluation:**
+```bash
+conda activate rdt_rlinf
+cd /path/to/RLinf-cl
+
 bash examples/embodiment/eval_libero_rdt.sh
+```
 
-# 指定 checkpoint 评估
+**Evaluation script (`eval_libero_rdt.sh`):**
+```bash
+#!/bin/bash
+
+export EMBODIED_PATH=$(pwd)
+export PYTHONPATH="${EMBODIED_PATH}:${PYTHONPATH}"
+export LIBERO_BASE=/path/to/LIBERO
+
+# Set RDT checkpoint path
+MODEL_PATH="/path/to/rdt_checkpoint"
+
+# Run evaluation
 python examples/embodiment/eval_embodied_agent.py \
-  --config-path examples/embodiment/config/ \
-  --config-name libero_spatial_rdt_eval \
-  rollout.model.model_path=${RDT_CHECKPOINT_PATH}/libero_spatial_best_ckpt
+    --config-name=libero_spatial_rdt_eval \
+    rollout.model.model_path="${MODEL_PATH}" \
+    actor.model.model_path="${MODEL_PATH}" \
+    runner.logger.experiment_name="libero_spatial_rdt_eval_$(date +%Y%m%d_%H%M%S)"
 ```
 
----
+**Expected Output**:
+```
+========================================
+   RDT LIBERO Spatial Evaluation
+========================================
+Loading RDT checkpoint from: /path/to/rdt_checkpoint
+✅ RDT model initialization complete!
+========================================
+Running evaluation on 10 LIBERO Spatial tasks...
+Task 1/10: pick_up_the_black_bowl_between_the_plate_and_the_ramekin
+  Success Rate: 95% (19/20 episodes)
+...
+========================================
+Overall Success Rate: 97.5% (195/200 episodes)
+========================================
+```
 
-## 2. Residual SAC 训练
+### Training (In Progress)
 
-### 2.0 Deployment
+**Note**: RL training is under development due to log probability computation challenges.
 
+**Run PPO training (when ready):**
 ```bash
-docker pull rlinf/rlinf:agentic-rlinf0.1-torch2.6.0-openvla-openvlaoft-pi0
+conda activate rdt_rlinf
+cd /path/to/RLinf-cl
 
-docker run -it --gpus all \
-   --shm-size 100g \
-   --net=host \
-   --name rlinf \
-   -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics \
-   -v $RLINF_DIR:/workspace/RLinf \
-   -v $HF_HOME:/workspace/hf \
-   -v $LOG_DIR:/workspace/RLinf/logs \
-   rlinf/rlinf:agentic-rlinf0.1-torch2.6.0-openvla-openvlaoft-pi0 /bin/bash
-
-source switch_env openvla-oft
+bash examples/embodiment/run_libero_rdt.sh
 ```
 
-### 2.1 Training
-
+**Training script (`run_libero_rdt.sh`):**
 ```bash
-bash examples/embodiment/run_embodiment.sh libero_spatial_task0_lora_residual_sac_openvlaoft
-```
+#!/bin/bash
 
-### 2.2 Eval single-task succ
+export EMBODIED_PATH="$( cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export REPO_PATH=$(dirname $(dirname "$EMBODIED_PATH"))
+export SRC_FILE="${EMBODIED_PATH}/train_embodied_agent.py"
 
-```bash
-bash examples/embodiment/eval_embodiment.sh libero_spatial_task0_lora_residual_sac_openvlaoft
-```
+export PYTHONPATH=${REPO_PATH}:$PYTHONPATH
+export MUJOCO_GL="egl"
+export PYOPENGL_PLATFORM="egl"
 
-### 2.3 Eval multi-task correction Field
+# Configuration
+CONFIG_NAME="libero_spatial_ppo_rdt"
+export RDT_CHECKPOINT_PATH="/path/to/rdt_checkpoint"
 
-```bash
-bash examples/embodiment/eval/correction_field_analysis/run_correction_field_analysis.sh
-```
-
-在run_correction_field_analysis.sh脚本中，指定：
-- `TASK_ID`
-- checkpoint路径
-- eval模式（base_rollout, demo, both_demo)
-
----
-
-## 实现细节
-
-### RDT 集成实现
-
-#### 1. 模型架构
-- **位置**: `rlinf/models/embodiment/rdt/`
-- **核心文件**:
-  - `rdt_policy.py` - RDT 策略包装器
-  - `obs_converter.py` - LIBERO 观测转换器
-- **特性**:
-  - 支持扩散推理（DDIM scheduler）
-  - Action chunking 推理模式
-  - 视觉-语言多模态输入
-  - BF16/FP16 混合精度
-
-#### 2. 配置文件
-- **模型配置**: `examples/embodiment/config/model/rdt.yaml`
-  ```yaml
-  model_type: rdt
-  model_path: ${RDT_CHECKPOINT_PATH}
-  obs_converter_type: libero
-  num_action_chunks: 64
-  denoising_steps: 5
-  precision: bf16
-  ```
-
-- **训练配置**: `examples/embodiment/config/libero_spatial_ppo_rdt.yaml`
-- **评估配置**: `examples/embodiment/config/libero_spatial_rdt_eval.yaml`
-
-#### 3. 数据流
-```
-LIBERO Env
-  ↓ raw_obs (agentview, eye_in_hand, ee_pos, etc.)
-ObsConverter
-  ↓ formatted_obs (main_images, wrist_images, proprio, task_descriptions)
-RDT Policy
-  ↓ diffusion inference + action chunking
-Action (7-dim: 3 pos + 4 quat)
-  ↓
-LIBERO Env
-```
-
-#### 4. 关键文件
-- **训练脚本**: `examples/embodiment/run_libero_rdt.sh`
-- **评估脚本**: `examples/embodiment/eval_libero_rdt.sh`
-- **集成测试**: `test_rdt_with_libero_env.py`
-
----
-
-### Residual SAC 实现
-
-#### 1. 模型架构
-- **位置**: `rlinf/models/embodiment/residual_policy/`
-
-#### 2. 模型配置
-- **配置文件**:
-  - `embodiment/config/model/residual_policy.yaml`
-  - `embodiment/config/model/lora_residual_policy.yaml`
-
-#### 3. 运行配置
-- **配置**: `embodiment/config/libero_spatial_task{$ID}_lora_residual_sac_openvlaoft.yaml`
-
-#### 4. 训练pipeline
-
-- 计算rollout，填充replay buffer，传入rollout_batch
-  - `rlinf/workers/rollout/hf/residual_rollout_worker.py`
-  - 在`ChunkStepResult`中存储(obs, next_obs, base_action, base_next_action)
-  - 特别地：访问base model，将当前obs的base action存入`last_forward_inputs`，存入rollout_batch
-
-- 接收rollout_batch，从replay buffer中采样，训练actor和critic
-  - `rlinf/workers/actor/residual_fsdp_sac_policy_worker.py`
-  > 继承自`rlinf/workers/actor/fsdp_sac_policy_worker.py`
-  > 重新实现了`forward_sac`, `forward_critic`等SAC相关方法
-  > 不访问base model，直接从rollout_batch中读取base action
-
-#### 5. 数据通信
-
-- rollout worker -> rollout_batch(`EmbodiedRolloutResult`) -> actor worker
-
----
-
-## 🐳 Docker 优化说明
-
-Docker 构建已优化，使用国内镜像源加速：
-- ✅ **PyPI**: 清华大学镜像
-- ✅ **APT**: 阿里云镜像  
-- ✅ **PyTorch**: 官方源（镜像源不支持最新版本）
-
-预期构建时间：5-10 分钟（原 20-30 分钟）
-
----
-
-## 📁 项目结构
-
-```
-RLinf-cl/
-├── rlinf/
-│   ├── models/embodiment/
-│   │   ├── rdt/              # RDT 模型实现
-│   │   └── residual_policy/  # Residual 策略实现
-│   ├── workers/
-│   │   ├── rollout/          # Rollout worker
-│   │   └── actor/            # Actor worker
-│   └── envs/
-│       └── libero/           # LIBERO 环境封装
-├── examples/embodiment/
-│   ├── config/               # 配置文件
-│   ├── run_libero_rdt.sh    # RDT 训练脚本
-│   └── eval_libero_rdt.sh   # RDT 评估脚本
-└── docker/
-    ├── Dockerfile.rdt.simple  # 优化的 Dockerfile
-    └── requirements_core.txt  # 核心依赖
+# Run training
+python ${SRC_FILE} \
+  --config-path ${EMBODIED_PATH}/config/ \
+  --config-name ${CONFIG_NAME} \
+  actor.model.model_path=${RDT_CHECKPOINT_PATH} \
+  rollout.model.model_path=${RDT_CHECKPOINT_PATH}
 ```
 
 ---
 
-## 📝 开发日志
+## 📊 Configuration
 
-### 2026-02 RDT 集成
-- ✅ RDT 模型接入 RLinf 框架
-- ✅ LIBERO 环境观测转换器
-- ✅ PPO 训练流程
-- ✅ 评估脚本和配置
-- ✅ Docker 环境优化（国内镜像加速）
-- ✅ 完整测试脚本
+### Evaluation Config (`libero_spatial_rdt_eval.yaml`)
+
+```yaml
+defaults:
+  - _self_
+  - actor: rdt_actor
+  - rollout: rdt_rollout
+
+runner:
+  name: embodiment_agent_runner
+  logger:
+    experiment_name: libero_spatial_rdt_eval
+    use_wandb: false
+  
+  eval:
+    num_eval_episodes: 20  # Episodes per task
+    eval_interval: 1
+
+rollout:
+  env:
+    name: libero
+    task_suite_name: libero_spatial
+    num_envs: 5  # Parallel environments
+    group_size: 1
+  
+  model:
+    name: rdt_policy
+    model_path: /path/to/rdt_checkpoint
+    num_action_chunks: 64
+    denoising_steps: 5
+    torch_dtype: bfloat16
+
+actor:
+  model:
+    name: rdt_policy
+    model_path: /path/to/rdt_checkpoint
+```
+
+### Training Config (`libero_spatial_ppo_rdt.yaml`)
+
+```yaml
+defaults:
+  - _self_
+  - actor: rdt_actor_ppo
+  - rollout: rdt_rollout_ppo
+
+runner:
+  name: ppo_embodiment_runner
+  
+  train:
+    num_iterations: 1000
+    num_steps_per_iteration: 2048
+  
+  eval:
+    num_eval_episodes: 20
+    eval_interval: 10
+
+algorithm:
+  name: ppo
+  learning_rate: 1e-5
+  clip_range: 0.2
+  entropy_coef: 0.01
+  value_loss_coef: 0.5
+```
 
 ---
 
-## 🔗 相关资源
+## ⚠️ Known Limitations
 
-- **RDT 论文**: [Robot Diffusion Transformer](https://arxiv.org/abs/2410.07494)
-- **LIBERO Benchmark**: [LIBERO: Lifelong Robot Learning](https://lifelong-robot-learning.cs.utexas.edu/LIBERO.html)
-- **RLinf Framework**: 分布式强化学习框架
+### 1. Log Probability Computation
+
+**Issue**: Diffusion models do not directly output action probabilities, making policy gradient methods challenging.
+
+**Impact**: 
+- ✅ Behavior cloning (evaluation) works
+- ⏳ RL training (PPO, REINFORCE) not yet supported
+
+**Potential Solutions**:
+- Use score matching to approximate log probabilities
+- Employ implicit policy gradient methods
+- Investigate diffusion policy gradient techniques from recent research
+
+### 2. Action Chunking
+
+**Issue**: RDT outputs 64-step action chunks, but RL typically uses single-step actions
+
+**Current Approach**: Execute all 64 steps in open-loop, then re-plan
+
+**Limitation**: No mid-chunk replanning, which may reduce reactivity
+
+### 3. Computational Cost
+
+**Issue**: Each action prediction requires 5 denoising steps (default), making inference slower than direct policy models
+
+**Performance**:
+- Inference time: ~100ms per action chunk (5 steps × 20ms/step)
+- Throughput: ~10 Hz effective control frequency
+
+### 4. Gripper Action Space
+
+**Issue**: RDT uses continuous gripper values, but LIBERO expects binary (open/close)
+
+**Current Solution**: Keep continuous values, clip to [-1, 1]
+
+**Trade-off**: May affect log probability computation for RL training
 
 ---
 
-## 📧 联系方式
+## 📚 References
 
-如有问题，请联系项目维护者或提交 Issue。
+- **RDT Paper**: [Robotics Diffusion Transformer](https://arxiv.org/abs/2410.07804)
+- **RDT Code**: [thu-ml/RoboticsDiffusionTransformer](https://github.com/thu-ml/RoboticsDiffusionTransformer)
+- **RLinf Paper**: [RLinf: Flexible and Efficient Large-scale Reinforcement Learning](https://arxiv.org/abs/2509.15965)
+- **RLinf Code**: [RLinf/RLinf](https://github.com/RLinf/RLinf)
+- **LIBERO Benchmark**: [Lifelong-Robot-Learning/LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO)
 
+---
+
+## 📧 Contact
+
+**Maintainer**: Siqi Chen  
+**Email**: chentingjia1209@163.com  
+**Affiliation**: RLinf Team  
+
+For questions or issues related to RDT integration, please open an issue on GitHub or contact the maintainer directly.
+
+---
