@@ -1,5 +1,10 @@
 # RLinf-CL: Continuous Learning for Embodied AI
 
+[![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md)
+[![简体中文](https://img.shields.io/badge/语言-简体中文-red.svg)](README.zh-CN.md)
+
+---
+
 本项目实现了基于强化学习的机器人操作持续学习框架，支持多种策略架构和训练算法。
 
 ## 🆕 最新进展
